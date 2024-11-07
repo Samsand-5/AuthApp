@@ -62,9 +62,7 @@ public class Register extends AppCompatActivity {
                     confirmSignInPassword.setError("Password do not match");
                 }
 
-
                 Toast.makeText(Register.this, "Data Validate", Toast.LENGTH_SHORT).show();
-
 
                 fAuth.createUserWithEmailAndPassword(email,password).addOnSuccessListener(new OnSuccessListener<AuthResult>() {
                     @Override
