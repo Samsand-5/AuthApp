@@ -40,7 +40,7 @@ public class NextActivity extends AppCompatActivity {
         FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
         if (currentUser != null) {
             String uid = currentUser.getUid();
-            txtUserUID.setText("User UID: " + uid);
+            txtUserUID.setText("Unique user id:- " + uid);
         } else {
             Toast.makeText(this, "No user is signed in", Toast.LENGTH_SHORT).show();
         }
