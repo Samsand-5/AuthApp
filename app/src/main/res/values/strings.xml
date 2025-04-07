@@ -8,7 +8,7 @@
     <string name="turn_on">Turn ON</string>
     <string name="turn_off">Turn OFF</string>
     <string name="todo">TODO</string>
-    <string name="no_paired_devices"/>
+    <string name="no_paired_devices" />
     <string name="connection_status">Connection Status</string>
     <string name="connected">Connected</string>
     <string name="password">Password</string>
