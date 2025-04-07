@@ -29,8 +29,19 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.DeviceView
     @Override
     public void onBindViewHolder(@NonNull DeviceViewHolder holder, int position) {
         BluetoothDevice device = devices.get(position);
-        holder.text1.setText(device.getName() != null ? device.getName() : "Unknown Device");
-        holder.text2.setText("Address: " + device.getAddress() + " | Connected: Yes");
+
+        String name = "Unknown Device";
+        String address = "Unavailable";
+
+        try {
+            name = device.getName() != null ? device.getName() : "Unknown Device";
+            address = device.getAddress();
+        } catch (SecurityException e) {
+            e.printStackTrace(); // Log the error or notify user
+        }
+
+        holder.text1.setText(name);
+        holder.text2.setText("Address: " + address + " | Connected: Yes");
     }
 
     @Override
