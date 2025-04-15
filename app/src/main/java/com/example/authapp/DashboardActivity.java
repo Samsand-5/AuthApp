@@ -16,6 +16,8 @@ import android.media.RingtoneManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import android.widget.Button;
 import android.widget.ImageView;
@@ -157,38 +159,29 @@ public class DashboardActivity extends AppCompatActivity {
         registerBluetoothStateReceiver();
     }
 
-    private void initializeBuzzer() {
-        try {
-            Uri notificationUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
-            if (notificationUri == null) {
-                notificationUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
-            }
-            buzzerRingtone = RingtoneManager.getRingtone(this, notificationUri);
-        } catch (Exception e) {
-            Log.e("Buzzer", "Error initializing buzzer", e);
-        }
-    }
-
     private void registerBluetoothStateReceiver() {
         bluetoothStateReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
                 String action = intent.getAction();
-
                 if (BluetoothDevice.ACTION_ACL_DISCONNECTED.equals(action)) {
-                    // A Bluetooth device has disconnected
+                    // Connection lost
                     if (isMonitoringConnection) {
-                        triggerBuzzer();
+                        triggerBuzzer("Bluetooth connection lost!");
                     }
                 } else if (BluetoothAdapter.ACTION_STATE_CHANGED.equals(action)) {
+                    // Bluetooth adapter state changed
                     int state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR);
-                    if (state == BluetoothAdapter.STATE_OFF) {
-                        // Bluetooth turned off completely
-                        if (isMonitoringConnection) {
-                            triggerBuzzer();
-                        }
+                    if (state == BluetoothAdapter.STATE_OFF && isMonitoringConnection) {
+                        triggerBuzzer("Bluetooth turned off!");
                     }
                     updateBluetoothButtonStates();
+                } else if (BluetoothDevice.ACTION_BOND_STATE_CHANGED.equals(action)) {
+                    // Pairing (bonding) state changed
+                    int bondState = intent.getIntExtra(BluetoothDevice.EXTRA_BOND_STATE, BluetoothDevice.ERROR);
+                    if (bondState == BluetoothDevice.BOND_NONE && isMonitoringConnection) {
+                        triggerBuzzer("Bluetooth pairing lost!");
+                    }
                 }
             }
         };
@@ -197,25 +190,70 @@ public class DashboardActivity extends AppCompatActivity {
         IntentFilter filter = new IntentFilter();
         filter.addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED);
         filter.addAction(BluetoothAdapter.ACTION_STATE_CHANGED);
-        registerReceiver(bluetoothStateReceiver, filter);
+        filter.addAction(BluetoothDevice.ACTION_BOND_STATE_CHANGED); // Added for pairing
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(bluetoothStateReceiver, filter, RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(bluetoothStateReceiver, filter);
+        }
     }
 
-    private void triggerBuzzer() {
+    private void triggerBuzzer(String message) {
         if (buzzerRingtone != null && !buzzerRingtone.isPlaying()) {
             try {
                 buzzerRingtone.play();
-                // Stop the buzzer after 5 seconds (adjust as needed)
-                new android.os.Handler().postDelayed(() -> {
+                new Handler(Looper.getMainLooper()).postDelayed(() -> {
                     if (buzzerRingtone != null && buzzerRingtone.isPlaying()) {
                         buzzerRingtone.stop();
                     }
                 }, 5000);
-
-                // Show alert to user
-                Toast.makeText(this, "Bluetooth connection lost!", Toast.LENGTH_LONG).show();
+                Toast.makeText(this, message, Toast.LENGTH_LONG).show();
             } catch (Exception e) {
                 Log.e("Buzzer", "Error playing buzzer", e);
+                Toast.makeText(this, "Failed to play buzzer", Toast.LENGTH_SHORT).show();
             }
+        } else if (buzzerRingtone == null) {
+            Toast.makeText(this, "Buzzer not initialized", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void initializeBuzzer() {
+        try {
+            Uri notificationUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
+            if (notificationUri == null) {
+                notificationUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
+            }
+            if (notificationUri == null) {
+                notificationUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
+            }
+            buzzerRingtone = RingtoneManager.getRingtone(this, notificationUri);
+            if (buzzerRingtone == null) {
+                Log.e("Buzzer", "No default ringtone available");
+                Toast.makeText(this, "No ringtone available", Toast.LENGTH_SHORT).show();
+            }
+        } catch (Exception e) {
+            Log.e("Buzzer", "Error initializing buzzer", e);
+            Toast.makeText(this, "Failed to initialize buzzer", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        // Unregister receiver
+        if (bluetoothStateReceiver != null) {
+            try {
+                unregisterReceiver(bluetoothStateReceiver);
+            } catch (IllegalArgumentException e) {
+                Log.e("Receiver", "Receiver not registered", e);
+            }
+        }
+        // Stop buzzer if playing
+        if (buzzerRingtone != null) {
+            if (buzzerRingtone.isPlaying()) {
+                buzzerRingtone.stop();
+            }
+            buzzerRingtone=null;
         }
     }
 
@@ -233,20 +271,6 @@ public class DashboardActivity extends AppCompatActivity {
         Toast.makeText(this, "Connection monitoring stopped", Toast.LENGTH_SHORT).show();
     }
 
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        // Unregister receiver
-        if (bluetoothStateReceiver != null) {
-            unregisterReceiver(bluetoothStateReceiver);
-        }
-
-        // Stop buzzer if playing
-        if (buzzerRingtone != null && buzzerRingtone.isPlaying()) {
-            buzzerRingtone.stop();
-        }
-        buzzerRingtone = null;
-    }
     private boolean hasBluetoothPermissions() {
         return ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED &&
                 ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED;
