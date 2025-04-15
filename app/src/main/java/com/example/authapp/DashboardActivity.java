@@ -2,11 +2,18 @@ package com.example.authapp;
 
 import android.Manifest;
 import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.hardware.Sensor;
 import android.hardware.SensorManager;
 import android.location.LocationManager;
+import android.media.Ringtone;
+import android.media.RingtoneManager;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
@@ -27,6 +34,10 @@ import com.google.firebase.auth.FirebaseUser;
 public class DashboardActivity extends AppCompatActivity {
     private static final int BLUETOOTH_PERMISSION_REQUEST_CODE = 100;
     private static final int ENABLE_BLUETOOTH_REQUEST_CODE = 101;
+
+    private Ringtone buzzerRingtone;
+    private BroadcastReceiver bluetoothStateReceiver;
+    private boolean isMonitoringConnection = false;
 
     private FirebaseAuth mAuth;
     private TextView tvWelcome, tvHelloUser;
@@ -64,6 +75,12 @@ public class DashboardActivity extends AppCompatActivity {
         Button btnPairedDevices = findViewById(R.id.btnPairedDevices);
         tvWelcome = findViewById(R.id.tvWelcome);
         tvHelloUser = findViewById(R.id.tvHelloUser);
+
+        Button btnStartMonitoring = findViewById(R.id.btnStartMonitoring);
+        Button btnStopMonitoring = findViewById(R.id.btnStopMonitoring);
+
+        btnStartMonitoring.setOnClickListener(v -> startMonitoringConnection());
+        btnStopMonitoring.setOnClickListener(v -> stopMonitoringConnection());
 
         updateBluetoothButtonStates();
 
@@ -132,8 +149,104 @@ public class DashboardActivity extends AppCompatActivity {
             startActivity(new Intent(this, MainActivity.class));
             finishAffinity();
         });
+
+        // Initialize buzzer
+        initializeBuzzer();
+
+        // Register Bluetooth state receiver
+        registerBluetoothStateReceiver();
     }
 
+    private void initializeBuzzer() {
+        try {
+            Uri notificationUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
+            if (notificationUri == null) {
+                notificationUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
+            }
+            buzzerRingtone = RingtoneManager.getRingtone(this, notificationUri);
+        } catch (Exception e) {
+            Log.e("Buzzer", "Error initializing buzzer", e);
+        }
+    }
+
+    private void registerBluetoothStateReceiver() {
+        bluetoothStateReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                String action = intent.getAction();
+
+                if (BluetoothDevice.ACTION_ACL_DISCONNECTED.equals(action)) {
+                    // A Bluetooth device has disconnected
+                    if (isMonitoringConnection) {
+                        triggerBuzzer();
+                    }
+                } else if (BluetoothAdapter.ACTION_STATE_CHANGED.equals(action)) {
+                    int state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR);
+                    if (state == BluetoothAdapter.STATE_OFF) {
+                        // Bluetooth turned off completely
+                        if (isMonitoringConnection) {
+                            triggerBuzzer();
+                        }
+                    }
+                    updateBluetoothButtonStates();
+                }
+            }
+        };
+
+        // Register for broadcasts
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED);
+        filter.addAction(BluetoothAdapter.ACTION_STATE_CHANGED);
+        registerReceiver(bluetoothStateReceiver, filter);
+    }
+
+    private void triggerBuzzer() {
+        if (buzzerRingtone != null && !buzzerRingtone.isPlaying()) {
+            try {
+                buzzerRingtone.play();
+                // Stop the buzzer after 5 seconds (adjust as needed)
+                new android.os.Handler().postDelayed(() -> {
+                    if (buzzerRingtone != null && buzzerRingtone.isPlaying()) {
+                        buzzerRingtone.stop();
+                    }
+                }, 5000);
+
+                // Show alert to user
+                Toast.makeText(this, "Bluetooth connection lost!", Toast.LENGTH_LONG).show();
+            } catch (Exception e) {
+                Log.e("Buzzer", "Error playing buzzer", e);
+            }
+        }
+    }
+
+    // Add methods to start/stop monitoring
+    public void startMonitoringConnection() {
+        isMonitoringConnection = true;
+        Toast.makeText(this, "Connection monitoring started", Toast.LENGTH_SHORT).show();
+    }
+
+    public void stopMonitoringConnection() {
+        isMonitoringConnection = false;
+        if (buzzerRingtone != null && buzzerRingtone.isPlaying()) {
+            buzzerRingtone.stop();
+        }
+        Toast.makeText(this, "Connection monitoring stopped", Toast.LENGTH_SHORT).show();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        // Unregister receiver
+        if (bluetoothStateReceiver != null) {
+            unregisterReceiver(bluetoothStateReceiver);
+        }
+
+        // Stop buzzer if playing
+        if (buzzerRingtone != null && buzzerRingtone.isPlaying()) {
+            buzzerRingtone.stop();
+        }
+        buzzerRingtone = null;
+    }
     private boolean hasBluetoothPermissions() {
         return ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED &&
                 ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED;

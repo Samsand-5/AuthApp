@@ -183,6 +183,47 @@
         </androidx.cardview.widget.CardView>
     </GridLayout>
 
+    <!-- Connection Monitoring Section -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:layout_marginTop="16dp"
+        android:padding="8dp">
+
+        <Button
+            android:id="@+id/btnStartMonitoring"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:layout_weight="1"
+            android:text="start_monitoring"
+            android:textAllCaps="false"
+            android:textColor="#FF212121" />
+
+        <Button
+            android:id="@+id/btnStopMonitoring"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="8dp"
+            android:text="stop_monitoring"
+            android:textColor="#FF212121"
+            android:textAllCaps="false"/>
+    </LinearLayout>
+
+    <!-- Status Indicator -->
+    <TextView
+        android:id="@+id/tvMonitoringStatus"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="monitoring_inactive"
+        android:textColor="@android:color/darker_gray"
+        android:layout_marginTop="8dp"/>
+
     <!-- Footer Section -->
     <TextView
         android:layout_width="wrap_content"
